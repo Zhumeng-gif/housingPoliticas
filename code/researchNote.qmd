@@ -1,0 +1,926 @@
+---
+title: "capbility_trust"
+format: html
+editor: visual
+---
+
+# setup
+
+```{r setup,include = FALSE,echo=FALSE}
+set.seed(0312)
+options (warn = -1)
+#setwd("/Users/zhumeng/Desktop/Spring semester_2023/research/code")
+# packbirth loading
+library(pacman)
+p_load("rio",
+       "here",
+       "tidyverse",
+       "scales",
+       "car",
+       "haven",
+       "psych",
+       "lavaan",
+       "mirt",
+       "modelsummary")
+```
+
+# dataloda
+
+# cbs
+
+## cbs2002
+
+```{r cbs2002, echo=FALSE}
+# no socilalevel
+cbs2002_raw <- read_dta("../data/cbs/cbs2002.dta") %>%
+  mutate(year = 2002,
+         wave = 1)
+
+cbs2002 <- cbs2002_raw %>%
+  dplyr::select(.,q1,q2,province_id,v82,v83,v2,v84,v17,v18,v19,v20,v21,v22,v24,v111,v110,v109,v101,v123,v130,v73a,v73b,v73c,v73e,year,wave)  %>%
+  rename(id = q1)
+
+# area
+cbs2002$time <- if_else(cbs2002$year < 2015, 0, 1)
+cbs2002$province <- as.character(cbs2002$province_id) %>%
+  dplyr::recode(
+         "11" = "北京市", 
+         "12" = "天津市", 
+         "13" = "河北省", 
+         "14" = "山西省", 
+         "15" = "内蒙古自治区", 
+         "21" = "辽宁省", 
+         "22" = "吉林省", 
+         "23" = "黑龙江省", 
+         "31" = "上海市", 
+         "32" = "江苏省", 
+         "33" = "浙江省", 
+         "34" = "安徽省", 
+         "35" = "福建省", 
+         "36" = "江西省", 
+         "37" = "山东省", 
+         "41" = "河南省", 
+         "42" = "湖北省", 
+         "43" = "湖南省", 
+         "44" = "广东省", 
+         "45" = "广西壮族自治区", 
+         "46" = "海南省", 
+         "50" = "重庆市", 
+         "51" = "四川省", 
+         "52" = "贵州省", 
+         "53" = "云南省", 
+         "54" = "西藏自治区", 
+         "61" = "陕西省", 
+         "62" = "甘肃省", 
+         "63" = "青海省", 
+         "64" = "宁夏回族自治区", 
+         "65" = "新疆维吾尔自治区")
+
+cbs2002$female <- cbs2002$v82 - 1
+cbs2002$age <- cbs2002$v83
+cbs2002$marriage <- Recode(cbs2002$v123,"9 = NA")
+cbs2002$hukouRural <- Recode(cbs2002$v2, "2 = 0; c(3,7) = NA") # 
+cbs2002$race <- Recode(cbs2002$v84, "2:33 = 0; c(0,98) = 0")
+cbs2002$party <- Recode(cbs2002$v111,"c(1,2,4,9) = 0; 3 =1")
+cbs2002$edu <- Recode(cbs2002$v110, "0:1 = 1; 2 = 2; 3:4 = 3; 5 = 4; 6 = 5; 9 = NA")
+cbs2002$socialLevel <- Recode(cbs2002$v24,"8:9 = NA")
+cbs2002$socialLevel_z <- scales::rescale(as.numeric(cbs2002$socialLevel),to = c(0,1))
+# iv
+cbs2002$staten <- 6 - cbs2002$v17
+cbs2002$statep <- 6 - cbs2002$v18
+cbs2002$statef <- 6 - cbs2002$v19
+
+cbs2002$famn <- 6 - cbs2002$v20
+cbs2002$famp <- 6 - cbs2002$v21
+cbs2002$famf <- 6 - cbs2002$v22
+
+
+# dv
+
+cbs2002[cbs2002 < 0] <- NA # 8/9 is noanwer
+
+cbs2002$trust_gover <- Recode(cbs2002$v73b,"c(0,8,9) = NA")
+cbs2002$trust_gover_z <- scales::rescale(as.numeric(cbs2002$trust_gover),to = c(0,1)) 
+cbs2002$trust_gover_max <- Recode(cbs2002$v73b,"1:5 = 0; 6 = 1;c(0,8,9) = NA")
+
+cbs2002$trust_local <- Recode(cbs2002$v73c,"c(0,8,9) = NA") 
+cbs2002$trust_local_z <- scales::rescale(as.numeric(cbs2002$trust_local),to = c(0,1)) 
+
+cbs2002$trust_court <- Recode(cbs2002$v73a,"c(0,8,9) = NA") 
+cbs2002$trust_court_z <- scales::rescale(as.numeric(cbs2002$trust_court),to = c(0,1)) 
+
+cbs2002$trust_congress <- Recode(cbs2002$v73e,"c(0,8,9) = NA")
+cbs2002$trust_congress_z <- scales::rescale(as.numeric(cbs2002$trust_congress),to = c(0,1)) 
+
+
+cbs2002$trust <- cbs2002 %>%
+  select(.,trust_gover,trust_local,trust_congress,trust_court) %>%
+  rowMeans(na.rm = TRUE)
+  
+cbs2002$state <- cbs2002 %>%
+  select(.,staten,statep,statef) %>%
+  rowMeans(na.rm = T)
+cbs2002$fam <- cbs2002 %>%
+  select(.,famn,famp,famf) %>%
+  rowMeans(na.rm = T)
+
+# scale
+cbs2002$staten_z <- scales::rescale(cbs2002$staten,to = c(0,1))
+cbs2002$statep_z <- scales::rescale(cbs2002$statep,to = c(0,1))
+cbs2002$statef_z <- scales::rescale(cbs2002$statef,to = c(0,1))
+cbs2002$state_z <- cbs2002 %>%
+  select(.,staten_z,statep_z,statef_z) %>%
+  rowMeans(na.rm = T)
+cbs2002$famn_z <- scales::rescale(cbs2002$famn,to = c(0,1))
+cbs2002$famp_z <- scales::rescale(cbs2002$famp,to = c(0,1))
+cbs2002$famf_z <- scales::rescale(cbs2002$famf,to = c(0,1))
+cbs2002$fam_z <- cbs2002 %>%
+  select(.,famn_z,famp_z,famf_z) %>%
+  rowMeans(na.rm = T)
+
+write.csv(cbs2002,file = "../dataclean/cbs2002.csv")
+```
+
+## cbs2008
+
+```{r cbs2008}
+cbs2008_raw <- haven::read_dta("../data/cbs/cbs2008.dta") %>%
+  mutate(year = 2008,
+         wave = 1) 
+
+cbs2008 <- cbs2008_raw %>%
+  dplyr::select(.,number,a1,j1,j2,j3,j3a,j4,j8,j25,j28,j35,PROV,c3,c5,c6,c7,c8,c9,c10,c11,f30a,f30b,f30c,f30e,year,wave)  %>%
+  rename(id = number) 
+
+# area
+cbs2008$time <- if_else(cbs2008$year < 2015, 0, 1)
+cbs2008$province <- as.character(cbs2008$PROV) %>%
+  dplyr::recode(
+         "11" = "北京市", 
+         "12" = "天津市", 
+         "13" = "河北省", 
+         "14" = "山西省", 
+         "15" = "内蒙古自治区", 
+         "21" = "辽宁省", 
+         "22" = "吉林省", 
+         "23" = "黑龙江省", 
+         "31" = "上海市", 
+         "32" = "江苏省", 
+         "33" = "浙江省", 
+         "34" = "安徽省", 
+         "35" = "福建省", 
+         "36" = "江西省", 
+         "37" = "山东省", 
+         "41" = "河南省", 
+         "42" = "湖北省", 
+         "43" = "湖南省", 
+         "44" = "广东省", 
+         "45" = "广西壮族自治区", 
+         "46" = "海南省", 
+         "50" = "重庆市", 
+         "51" = "四川省", 
+         "52" = "贵州省", 
+         "53" = "云南省", 
+         "54" = "西藏自治区", 
+         "61" = "陕西省", 
+         "62" = "甘肃省", 
+         "63" = "青海省", 
+         "64" = "宁夏回族自治区", 
+         "65" = "新疆维吾尔自治区")
+
+cbs2008$female <- cbs2008$j1 - 1
+cbs2008$age <- cbs2008$j2
+cbs2008$marriage <- Recode(cbs2008$j35,"c(1,2,3,4,5,6) = 0; 2 = 1; 9 = NA")
+cbs2008$hukouRural <- Recode(cbs2008$a1, "2 = 0; c(3,9) = NA") 
+cbs2008$race <- Recode(cbs2008$j4, "2 = 0; c(98,99) = 0") 
+cbs2008$party <- Recode(cbs2008$j28,"1:2 = 0; 3:4 =1; 9 = NA") 
+cbs2008$edu <- Recode(cbs2008$j3, "0:1 = 1; 2:3 = 2; 4:6 = 3; 7 = 4; 8 = 5; 9 = NA")
+cbs2008$socialLevel <- Recode(cbs2008$j25,"98:99 = NA")
+cbs2008$socialLevel_z <- scales::rescale(as.numeric(cbs2008$socialLevel),to = c(0,1))
+
+
+
+# iv
+cbs2008$statepolicy <- cbs2008$c5
+cbs2008$staten <- 6 - cbs2008$c6
+cbs2008$statep <- 6 - cbs2008$c7
+cbs2008$statef <- 6 - cbs2008$c8
+
+cbs2008$famn <- 6 - cbs2008$c9
+cbs2008$famp <- 6 - cbs2008$c10
+cbs2008$famf <- 6 - cbs2008$c11
+cbs2008$pride <- 5 - cbs2008$c3
+cbs2008[cbs2008 < 0] <- NA
+cbs2008$state <- cbs2008 %>%
+  select(.,staten,statep,statef) %>%
+  rowMeans(na.rm = T)
+cbs2008$fam <- cbs2008 %>%
+  select(.,famn,famp,famf) %>%
+  rowMeans(na.rm = T)
+# dv
+cbs2008$trust_gover <- Recode(cbs2008$f30b,"7:9 = NA")
+cbs2008$trust_gover_z <- scales::rescale(as.numeric(cbs2008$trust_gover),to = c(0,1))
+
+cbs2008$trust_local <- Recode(cbs2008$f30c,"7:9 = NA") 
+cbs2008$trust_local_z <- scales::rescale(as.numeric(cbs2008$trust_local),to = c(0,1))
+
+cbs2008$trust_court <- Recode(cbs2008$f30a,"7:9 = NA") 
+cbs2008$trust_court_z <- scales::rescale(as.numeric(cbs2008$trust_court),to = c(0,1)) 
+
+cbs2008$trust_congress <- Recode(cbs2008$f30e,"7:9 = NA")
+cbs2008$trust_congress_z <- scales::rescale(as.numeric(cbs2008$trust_congress),to = c(0,1)) 
+
+cbs2008$trust <- cbs2008 %>%
+  select(.,trust_court,trust_gover,trust_local,trust_congress) %>%
+  rowMeans(na.rm = TRUE)
+
+
+# scale
+cbs2008$staten_z <- scales::rescale(cbs2008$staten,to = c(0,1))
+cbs2008$statep_z <- scales::rescale(cbs2008$statep,to = c(0,1))
+cbs2008$statef_z <- scales::rescale(cbs2008$statef,to = c(0,1))
+cbs2008$state_z <- cbs2008 %>%
+  select(.,staten_z,statep_z,statef_z) %>%
+  rowMeans(na.rm = T)
+cbs2008$famn_z <- scales::rescale(cbs2008$famn,to = c(0,1))
+cbs2008$famp_z <- scales::rescale(cbs2008$famp,to = c(0,1))
+cbs2008$famf_z <- scales::rescale(cbs2008$famf,to = c(0,1))
+cbs2008$fam_z <- cbs2008 %>%
+  select(.,famn_z,famp_z,famf_z) %>%
+  rowMeans(na.rm = T)
+cbs2008$pride_z <- scales::rescale(cbs2008$pride,to = c(0,1))
+
+write.csv(cbs2008,file = "../dataclean/cbs2008.csv")
+```
+
+## cbs2011
+
+```{r cbs2011}
+cbs2011_raw <- haven::read_dta("../data/cbs/cbs2011.dta") %>%
+  mutate(year = 2011,
+         wave = 1) %>%
+  dplyr::rename("id" = "idnumber")
+
+cbs2011 <- cbs2011_raw %>%
+  select(.,id,PROVINCE,SEX,SE2,A1,SE29,SE21,SE22,A12,A13,A14,A15,A16,A17,C17b,C17a,C17d,C17h,G1,SE4,SE3,year,wave)
+
+cbs2011$province <- as.character(cbs2011$PROVINCE) %>%
+  dplyr::recode(
+         "1" = "上海市",
+         "2" = "辽宁省",
+         "3" = "河南省",
+         "4" = "广东省",
+         "5" = "甘肃省", 
+         "6" = "北京市",
+         "7" = "天津市", 
+         "8" = "河北省", 
+         "9" = "山西省",
+         "10" = "吉林省",
+         "11" = "黑龙江省",
+         "12" = "江苏省",
+         "13" = "浙江省", 
+         "14" = "安徽省",
+         "15" = "福建省",
+         "16" = "江西省",
+         "17" = "山东省",
+         "18" = "湖北省", 
+         "19" = "湖南省", 
+         "20" = "广西壮族自治区",
+         "21" = "重庆市", 
+         "22" = "四川省", 
+         "23" = "贵州省", 
+         "24" = "云南省", 
+         "25" = "陕西省") 
+
+cbs2011$time <- if_else(cbs2011$year < 2015, 0, 1)
+cbs2011$female <- cbs2011$SEX - 1
+cbs2011$age <- cbs2011$SE2
+cbs2011$hukouRural <- Recode(cbs2011$A1,"2 = 0; c(3,9) = NA")
+cbs2011$marriage <- Recode(cbs2011$SE29,"2 = 1; c(1,3,4,5,6) = 0; 9 = NA")
+cbs2011$party <- Recode(cbs2011$SE22,"c(1,2,9) = 0;3:4 = 1")
+cbs2011$race <- Recode(cbs2011$SE4,"c(98,99,2) = 0")
+cbs2011$edu <- Recode(cbs2011$SE3,"0:1 = 1; 2:3 = 2;4:6 = 3; 7 = 4; 8 = 5; 9 = NA")
+
+# iv
+cbs2011$staten <- 6 - cbs2011$A12
+cbs2011$statep <- 6 - cbs2011$A13
+cbs2011$statef <- 6 - cbs2011$A14
+
+cbs2011$famn <- 6 - cbs2011$A15
+cbs2011$famp <- 6 - cbs2011$A16
+cbs2011$famf <- 6 - cbs2011$A17
+
+cbs2011$pride <- 5 - cbs2011$G1
+cbs2011[cbs2011 < 0] <- NA
+
+cbs2011$state <- cbs2011 %>%
+  select(.,staten,statep,statef) %>%
+  rowMeans(na.rm = T)
+cbs2011$fam <- cbs2011 %>%
+  select(.,famn,famp,famf) %>%
+  rowMeans(na.rm = T)
+
+# sacle
+cbs2011$trust_gover <- Recode(cbs2011$C17b,"7:9 = NA")
+cbs2011$trust_gover_z <- scales::rescale(as.numeric(cbs2011$trust_gover),to = c(0,1))
+
+
+cbs2011$trust_local <- Recode(cbs2011$C17h,"7:9 = NA")
+cbs2011$trust_local_z <- scales::rescale(as.numeric(cbs2011$trust_local),to = c(0,1))
+
+cbs2011$trust_court <- Recode(cbs2011$C17a,"7:9 = NA")
+cbs2011$trust_court_z <- scales::rescale(as.numeric(cbs2011$trust_court),to = c(0,1))
+
+cbs2011$trust_congress <- Recode(cbs2011$C17d,"7:9 = NA")
+cbs2011$trust_congress_z <- scales::rescale(as.numeric(cbs2011$trust_congress),to = c(0,1))
+
+
+cbs2011$trust <- cbs2011 %>%
+  select(.,trust_gover,trust_local,trust_court,trust_congress) %>%
+  rowMeans(na.rm = TRUE)
+
+# scale
+cbs2011$staten_z <- scales::rescale(cbs2011$staten,to = c(0,1))
+cbs2011$statep_z <- scales::rescale(cbs2011$statep,to = c(0,1))
+cbs2011$statef_z <- scales::rescale(cbs2011$statef,to = c(0,1))
+cbs2011$state_z <- cbs2011 %>%
+  select(.,staten_z,statep_z,statef_z) %>%
+  rowMeans(na.rm = T)
+cbs2011$famn_z <- scales::rescale(cbs2011$famn,to = c(0,1))
+cbs2011$famp_z <- scales::rescale(cbs2011$famp,to = c(0,1))
+cbs2011$famf_z <- scales::rescale(cbs2011$famf,to = c(0,1))
+cbs2011$fam_z <- cbs2011 %>%
+  select(.,famn_z,famp_z,famf_z) %>%
+  rowMeans(na.rm = T)
+
+cbs2011$pride_z <- scales::rescale(cbs2011$pride,to = c(0,1))
+
+write.csv(cbs2011,file = "../dataclean/cbs2011.csv")
+
+```
+
+## cbs2014
+
+```{r cbs2014}
+cbs2014_raw <- haven::read_sav("../data/cbs/cbs2014.sav") %>%
+  mutate(year = 2014,
+         wave = 1)
+
+cbs2014 <- cbs2014_raw %>%
+  dplyr::select(.,CASEID,Proid,A1,A2,A3A,A4,B15,B16,B17,B18,B19,B20,SE1,SE1A,SE9,SE17,SE8,SE4,SE3,SE2,E1A,E1B,E1H,E1D,H2,year,wave) %>%
+  dplyr::rename(id = CASEID)
+cbs2014$province <- as.character(cbs2014$Proid) %>%
+  dplyr::recode(
+         "11" = "北京市", 
+         "12" = "天津市", 
+         "13" = "河北省", 
+         "14" = "山西省", 
+         "15" = "内蒙古自治区", 
+         "21" = "辽宁省", 
+         "22" = "吉林省", 
+         "23" = "黑龙江省", 
+         "31" = "上海市", 
+         "32" = "江苏省", 
+         "33" = "浙江省", 
+         "34" = "安徽省", 
+         "35" = "福建省", 
+         "36" = "江西省", 
+         "37" = "山东省", 
+         "41" = "河南省", 
+         "42" = "湖北省", 
+         "43" = "湖南省", 
+         "44" = "广东省", 
+         "45" = "广西壮族自治区", 
+         "46" = "海南省", 
+         "50" = "重庆市", 
+         "51" = "四川省", 
+         "52" = "贵州省", 
+         "53" = "云南省", 
+         "54" = "西藏自治区", 
+         "61" = "陕西省", 
+         "62" = "甘肃省", 
+         "63" = "青海省", 
+         "64" = "宁夏回族自治区", 
+         "65" = "新疆维吾尔自治区")
+
+cbs2014$time <- if_else(cbs2014$year < 2015, 0, 1)
+cbs2014$female <- Recode(cbs2014$A1,"1 = 0; 2 = 1; 9 = NA") 
+cbs2014$age <- cbs2014$A3A
+cbs2014$marriage <- Recode(cbs2014$SE17,"c(1,3,4,5,6) = 0; 2 = 1; 9 = NA")
+cbs2014$hukouRural <- Recode(cbs2014$A2,"2 = 0; c(3,9) = NA")
+cbs2014$race <- Recode(cbs2014$A4,"c(8,9,2) = 0")
+cbs2014$edu <- Recode(cbs2014$SE1, "0:1 = 1; 2:3 = 2; 4:6 = 3; 7 = 4;8 = 5; 9 = NA")
+cbs2014$party <- Recode(cbs2014$SE9,"3:4 = 1; c(1,2,9) = 0")
+cbs2014$socialLevel <- Recode(cbs2014$SE8,"98:99 = NA")
+cbs2014$socialLevel_z <- scales::rescale(as.numeric(cbs2014$socialLevel),to = c(0,1))
+# iv
+cbs2014$staten <- 6 - cbs2014$B15
+cbs2014$statep <- 6 - cbs2014$B16
+cbs2014$statef <- 6 - cbs2014$B17
+
+cbs2014$famn <- 6 - cbs2014$B18
+cbs2014$famp <- 6 - cbs2014$B19
+cbs2014$famf <- 6 - cbs2014$B20
+
+cbs2014$state <- cbs2014 %>%
+  select(.,staten,statep,statef) %>%
+  rowMeans(na.rm = T)
+cbs2014$fam <- cbs2014 %>%
+  select(.,famn,famp,famf) %>%
+  rowMeans(na.rm = T)
+# dv
+cbs2014$pride <- 5 - cbs2014$H2
+
+cbs2014$trust_gover <- Recode(cbs2014$E1B,"7:9 = NA") 
+cbs2014$trust_gover_z <- scales::rescale(as.numeric(cbs2014$trust_gover),to = c(0,1)) 
+
+cbs2014$trust_local <- Recode(cbs2014$E1H,"7:9 = NA") 
+cbs2014$trust_local_z <- scales::rescale(as.numeric(cbs2014$trust_local),to = c(0,1)) 
+
+cbs2014$trust_court <- Recode(cbs2014$E1A,"7:9 = NA") 
+cbs2014$trust_court_z <- scales::rescale(as.numeric(cbs2014$trust_court),to = c(0,1)) 
+
+cbs2014$trust_congress <- Recode(cbs2014$E1D,"7:9 = NA") 
+cbs2014$trust_congress_z <- scales::rescale(as.numeric(cbs2014$trust_congress),to = c(0,1)) 
+
+
+cbs2014$trust <- cbs2014 %>%
+  select(.,trust_gover,trust_local,trust_court,trust_congress) %>%
+  rowMeans(na.rm = TRUE)
+
+cbs2014[cbs2014 < 0] <- NA
+
+# scale 
+
+cbs2014$staten_z <- scales::rescale(cbs2014$staten,to = c(0,1))
+cbs2014$statep_z <- scales::rescale(cbs2014$statep,to = c(0,1))
+cbs2014$statef_z <- scales::rescale(cbs2014$statef,to = c(0,1))
+cbs2014$state_z <- cbs2014 %>%
+  select(.,staten_z,statep_z,statef_z) %>%
+  rowMeans(na.rm = T)
+cbs2014$famn_z <- scales::rescale(cbs2014$famn,to = c(0,1))
+cbs2014$famp_z <- scales::rescale(cbs2014$famp,to = c(0,1))
+cbs2014$famf_z <- scales::rescale(cbs2014$famf,to = c(0,1))
+cbs2014$fam_z <- cbs2014 %>%
+  select(.,famn_z,famp_z,famf_z) %>%
+  rowMeans(na.rm = T)
+cbs2014$pride_z <- scales::rescale(cbs2014$pride,to. =c(0,1))
+
+write.csv(cbs2014,file = "../dataclean/cbs2014.csv")
+```
+
+## cbs2019
+
+```{r cbs2019}
+cbs2019_raw <- haven::read_sav("../data/cbs/cbs2019.sav") %>%
+  mutate(year = 2019,
+         wave = 1)
+
+cbs2019 <- cbs2019_raw %>%
+  dplyr::select(.,"个案编号",SITEPRO,A1,A2,A4A,A5,B15,B16,B17,B18,B19,B20,SE1,SE1A,SE11,SE13,SE22,SE5,E4A,E4B,E4H,E4D,H2,year,wave) %>%
+  dplyr::rename(province = SITEPRO,
+                id = "个案编号")
+
+cbs2019$province[cbs2019$province == "上海"] <- "上海市"
+cbs2019$province[cbs2019$province == "北京"] <- "北京市"
+cbs2019$province[cbs2019$province == "北京"] <- "北京市"
+cbs2019$province[cbs2019$province == "重庆"] <- "重庆市"
+cbs2019$province[cbs2019$province == "云南"] <- "云南省"
+cbs2019$province[cbs2019$province == "吉林"] <- "吉林省"
+cbs2019$province[cbs2019$province == "四川"] <- "四川省"
+cbs2019$province[cbs2019$province == "安徽"] <- "安徽省"
+cbs2019$province[cbs2019$province == "山东"] <- "山东省"
+cbs2019$province[cbs2019$province == "江苏"] <- "江苏省"
+cbs2019$province[cbs2019$province == "广西"] <- "广西壮族自治区"
+cbs2019$province[cbs2019$province == "广东"] <- "广东省"
+cbs2019$province[cbs2019$province == "江西"] <- "江西省"
+cbs2019$province[cbs2019$province == "河南"] <- "河南省"
+cbs2019$province[cbs2019$province == "浙江"] <- "浙江省"
+cbs2019$province[cbs2019$province == "湖南"] <- "湖南省"
+cbs2019$province[cbs2019$province == "甘肃"] <- "甘肃省"
+cbs2019$province[cbs2019$province == "贵州"] <- "贵州省"
+cbs2019$province[cbs2019$province == "福建"] <- "福建省"
+cbs2019$province[cbs2019$province == "黑龙江"] <- "黑龙江省"
+
+cbs2019$time <- if_else(cbs2019$year < 2015, 0, 1)
+cbs2019$female <- cbs2019$A1 - 1
+cbs2019$age <- cbs2019$A4A
+cbs2019$marriage <- Recode(cbs2019$SE22,"c(1,3,4,5,6) = 0; 2 = 1")
+cbs2019$hukouRural <- Recode(cbs2019$A2,"c(2,3) = 0; c(1,4) = 1; c(5,9) = NA")
+cbs2019$race <- Recode(cbs2019$A5,"2 = 0")
+cbs2019$edu <- Recode(cbs2019$SE1, "0:3 = 1; 4:5 = 2; 6:8 = 3; 9 = 3; 10 = 5")
+cbs2019$party <- Recode(cbs2019$SE13,"3:4 = 1; 1:2 = 0")
+cbs2019$socialLevel <- cbs2019$SE11
+cbs2019$socialLevel_z <- scales::rescale(as.numeric(cbs2019$socialLevel),to = c(0,1))
+
+# iv
+cbs2019$staten <- 6 - cbs2019$B15
+cbs2019$statep <- 6 - cbs2019$B16
+cbs2019$statef <- 6 - cbs2019$B17
+
+cbs2019$famn <- 6 - cbs2019$B18
+cbs2019$famp <- 6 - cbs2019$B19
+cbs2019$famf <- 6 - cbs2019$B20
+cbs2019$state <- cbs2019 %>%
+  select(.,staten,statep,statef) %>%
+  rowMeans(na.rm = T)
+cbs2019$fam <- cbs2019 %>%
+  select(.,famn,famp,famf) %>%
+  rowMeans(na.rm = T)
+
+cbs2019$staten_z <- scales::rescale(cbs2019$staten,to = c(0,1))
+cbs2019$statep_z <- scales::rescale(cbs2019$statep,to = c(0,1))
+cbs2019$statef_z <- scales::rescale(cbs2019$statef,to = c(0,1))
+cbs2019$state_z <- cbs2019 %>%
+  select(.,staten_z,statep_z,statef_z) %>%
+  rowMeans(na.rm = T)
+
+cbs2019$famn_z <- scales::rescale(cbs2019$famn,to = c(0,1))
+cbs2019$famp_z <- scales::rescale(cbs2019$famp,to = c(0,1))
+cbs2019$famf_z <- scales::rescale(cbs2019$famf,to = c(0,1))
+cbs2019$fam_z <- cbs2019 %>%
+  select(.,famn_z,famp_z,famf_z) %>%
+  rowMeans(na.rm = T)
+
+# dv
+cbs2019$pride <- 5 - cbs2019$H2
+cbs2019$pride_z <- scales::rescale(cbs2019$pride,to = c(0,1))
+
+cbs2019$trust_gover <- cbs2019$E4B
+cbs2019$trust_gover_z <- scales::rescale(as.numeric(cbs2019$E4B),to = c(0,1)) 
+
+cbs2019$trust_local <- cbs2019$E4H
+cbs2019$trust_local_z <- scales::rescale(as.numeric(cbs2019$E4H),to = c(0,1))
+
+cbs2019$trust_court <- cbs2019$E4A
+cbs2019$trust_court_z <- scales::rescale(as.numeric(cbs2019$E4A),to = c(0,1)) 
+
+cbs2019$trust_congress <- cbs2019$E4H
+cbs2019$trust_congress_z <- scales::rescale(as.numeric(cbs2019$E4H),to = c(0,1)) 
+
+cbs2019$trust <- cbs2019 %>%
+  select(.,trust_court,trust_gover,trust_local,trust_congress) %>%
+  rowMeans(na.rm = TRUE)
+
+write.csv(cbs2019,file = "../dataclean/cbs2019.csv")
+
+```
+
+# CSS
+## dataloda
+```{r dataloda}
+cityname <- read.csv("../data/cityname.csv") %>%
+  select(.,city_code,city_name)
+
+css2021on_raw <- read_sav("../data/CSS/Data/CSS2021.sav") %>%
+  mutate(city_code = v1,
+         year = 2021)
+css2021_raw$city_code <- as.character(css2021_raw$city_code) %>%
+  substring(.,1,4) %>%
+  paste0(.,"00",sep = "")
+css2021 <- merge(css2021_raw,cityname,by.x = "city_code", by.y="city_code", all.x = TRUE) %>%
+  select(.,v2,v1,city_code,city_name,v3_1,year,a1b1,a1c1,a1d1,a1e1,a2,a3,a4a,a4g,b1,b3,c1a,c1b1,c1c1,c1d1,c1e1,c1f1,c1g1,c1h1,c5a1,c6a,c6b,e1a,e2a,d4a,d4b,d4c,f1a_1,f1a_2,f1a_3,f1a_9,g1a_1,g1a_2,g1a_4,g1a_5,g3a_1,g3a_2,g3a_3,g3a_4,g3a_5,g3a_6,g3a_7,g3a_8,g3a_9,g3a_10,g3a_11,g3a_12,g3a_13,g3a_14,g3a_15,h2a_1,h2a_2,h2a_3,h2a_4,h2a_5,h2a_6,h2a_7,h2a_8,h2a_9,h2a_11,h3b,h4,h5a,h6a_1,h6a_2,h6a_3,h6a_4,h6a_5,h6a_6)
+css2021$city_name[css2021$city_code %in% c(110100:110800)] <- "北京市"
+css2021$city_name[css2021$city_code %in% c(120100:120800)] <- "天津市"
+css2021$city_name[css2021$city_code %in% c(310100:310800)] <- "上海市"
+css2021$city_name[css2021$city_code %in% c(500100:501200)] <- "重庆市"
+
+css2021on <- css2021 %>%
+  rename(number = v2,
+         id = v1,
+         province = v3_1) %>%
+  drop_na(city_name)
+css2021on[css2021on < 0] <- NA
+```
+
+## dataclean
+```{r dataclean}
+css2021on$province <- as.character(css2021on$province) %>%
+  dplyr::recode(
+         "11" = "北京市", 
+         "12" = "天津市", 
+         "13" = "河北省", 
+         "14" = "山西省", 
+         "15" = "内蒙古自治区", 
+         "21" = "辽宁省", 
+         "22" = "吉林省", 
+         "23" = "黑龙江省", 
+         "31" = "上海市", 
+         "32" = "江苏省", 
+         "33" = "浙江省", 
+         "34" = "安徽省", 
+         "35" = "福建省", 
+         "36" = "江西省", 
+         "37" = "山东省", 
+         "41" = "河南省", 
+         "42" = "湖北省", 
+         "43" = "湖南省", 
+         "44" = "广东省", 
+         "45" = "广西壮族自治区", 
+         "46" = "海南省", 
+         "50" = "重庆市", 
+         "51" = "四川省", 
+         "52" = "贵州省", 
+         "53" = "云南省", 
+         "54" = "西藏自治区", 
+         "61" = "陕西省", 
+         "62" = "甘肃省", 
+         "63" = "青海省", 
+         "64" = "宁夏回族自治区", 
+         "65" = "新疆维吾尔自治区")
+css2021on$female <- css2021on$a1b1 - 1
+css2021on$age <- 2021 - css2021on$a1c1
+css2021on$corhort <- Recode(css2021on$age,"17:29 = 1; 30:49 = 2; 50:69 = 3;70 = 4")
+css2021on$marriage <- Recode(css2021on$a1e1,"c(1,4,5,6) = 0; c(2,3) = 1; -2 = NA")
+css2021on$hukouRural <- Recode(css2021on$a4a,"2:4 = 0")#农业户口为1；非农为0
+css2021on$edu <- Recode(css2021on$a1d1,"1:2 = 1; 3 = 2; 4:6 = 3; 7:8 = 4; 9 = 5; c(-2,10) = NA")
+css2021on$race <- Recode(css2021on$a2,"2:12 = 0; -1 = 0")
+css2021on$party <- Recode(css2021on$a3,"c(1,3) = 1; c(2,4) = 0")
+css2021on$socialLevel <- css2021on$d4a
+css2021on$incomeFam <- css2021on$c5a1
+css2021on$trust_gover <- css2021on$f1a_1
+css2021on$trust_gover_z <- rescale(as.numeric(css2021on$f1a_1),to = c(0,1))
+css2021on$trust_goverR <- Recode(css2021on$f1a_1,"c(3,4) = 1; c(1,2) = 0")
+css2021on$trust_gover_max <- Recode(css2021on$f1a_1,"4 = 1; 1:3 = 0") #-1表示不好说，目前标为na，可以根据结果调整为0这一类
+css2021on$trust_quxian <- css2021on$f1a_2
+css2021on$trust_xiangzhen <- css2021on$f1a_3
+css2021on$trust_local <- dplyr::select(css2021on, trust_quxian, trust_xiangzhen) %>%
+  rowMeans(na.rm = TRUE)
+css2021on$trust_local_max <- Recode(css2021on$trust_local,"4 = 1; 1:3.5 = 0")
+css2021on$trust_local_z <- scales::rescale(css2021on$trust_local,to = c(0,1))
+
+css2021on$trust_quxian_z <- scales::rescale(as.numeric(css2021on$f1a_2),to = c(0,1))
+css2021on$trust_xiangzhen_z <- scales::rescale(as.numeric(css2021on$f1a_3),to = c(0,1))
+
+df_css2021 <- css2021on %>%
+  filter(city_code != 653000) %>%
+  group_by(city_name) %>%
+  summarise(trust_local_zm = mean(trust_local_z,na.rm = T),
+            trust_gover_zm = mean(trust_gover_z,na.rm = T),
+            trust_local_maxm = mean(trust_local_max,na.rm = T),
+            trust_gover_maxm = mean(trust_gover_max,na.rm = T)) %>%
+  mutate(gap_z = trust_gover_zm - trust_local_zm,
+         gap_max = trust_gover_maxm - trust_local_maxm)
+```
+
+# housePrice
+```{r house}
+
+```
+
+
+# fullData for political Trust
+
+## dataCombine
+
+```{r warning = FALSE}
+df_cbs2002 <- cbs2002 %>%
+  dplyr::select(id,province,year,age,female,party,race,hukouRural,marriage,edu,socialLevel_z,staten,statep,statef,famn,famp,famf,staten_z,statep_z,statef_z,state,state_z,fam,fam_z,famn_z,famp_z,famf_z,trust_gover,trust_gover_z,trust_local,trust) 
+
+df_cbs2008 <- cbs2008 %>%
+  dplyr::select(id,province,year,age,female,party,race,hukouRural,marriage,edu,socialLevel_z,staten,statep,statef,famn,famp,famf,staten_z,statep_z,statef_z,state,state_z,fam,fam_z,famn_z,famp_z,famf_z,trust_gover,trust_gover_z,trust_local,trust,pride_z) 
+
+df_cbs2011 <- cbs2011 %>%
+  dplyr::select(id,province,year,age,female,party,race,hukouRural,marriage,edu,staten,statep,statef,state,state_z,fam,fam_z,famn,famp,famf,staten_z,statep_z,statef_z,famn_z,famp_z,famf_z,trust_gover,trust_gover_z,trust_local,trust,pride_z) 
+
+df_cbs2014 <- cbs2014 %>%
+  dplyr::select(id,province,year,age,female,party,race,hukouRural,marriage,edu,socialLevel_z,staten,statep,statef,famn,famp,famf,staten_z,statep_z,statef_z,state,state_z,fam,fam_z,famn_z,famp_z,famf_z,trust_gover,trust_gover_z,trust_local,trust,pride_z) 
+
+df_cbs2019 <- cbs2019 %>%
+  dplyr::select(id,province,year,age,female,party,race,hukouRural,marriage,edu,socialLevel_z,staten,statep,statef,famn,famp,famf,staten_z,statep_z,statef_z,state,state_z,fam,fam_z,famn_z,famp_z,famf_z,trust_gover,trust_gover_z,trust_local,trust,pride_z) 
+
+```
+
+### fulldata for trust
+
+```{r fulldata for trust, warning=FALSE}
+fullData <- bind_rows(
+  df_cbs2002,
+  df_cbs2008,
+  #df_cbs2011,
+  df_cbs2014,
+  df_cbs2019
+)
+fullData$statez <- scales::rescale(fullData$state,to = c(0,1))
+fullData$famz <- scales::rescale(fullData$fam,to = c(0,1))
+
+fullDatam <- fullData %>%
+  group_by(year) %>%
+  summarise(trust_gover_m = mean(trust_gover,na.rm = T),
+            trust_gover_zm = mean(trust_gover_z,na.rm = T),
+            trust_local_m = mean(trust_local,na.rm = T),
+            state_m = mean(state,na.rm = T),
+            state_zm = mean(statez,na.rm = T),
+            fam_zm = mean(famz,na.rm = T),
+            fam_m = mean(fam,na.rm = T),
+            trust_m = mean(trust,na.rm = T),
+            trust_zm = mean(scales::rescale(trust,to = c(0,1)),na.rm = T),
+            staten_m = mean(staten,na.rm = T),
+            statep_m = mean(statep,na.rm = T),
+            statef_m = mean(statef,na.rm = T),
+            famn_m = mean(famn,na.rm = T),
+            famp_m = mean(famp,na.rm = T),
+            famf_m = mean(famf,na.rm = T),
+            staten_zm = mean(staten_z,na.rm = T),
+            statep_zm = mean(statep_z,na.rm = T),
+            statef_zm = mean(statef_z,na.rm = T),
+            famn_zm = mean(famn_z,na.rm = T),
+            famp_zm = mean(famp_z,na.rm = T),
+            famf_zm = mean(famf_z,na.rm = T)) %>%
+  drop_na()
+
+```
+
+## dataDescription
+
+### timeTrend
+
+```{r timeTrend}
+plot_state <- fullDatam %>%
+  ggplot() +
+  geom_line(aes(x=factor(year), y=staten_m,group = 1),color = "red") +
+  geom_line(aes(x=factor(year), y=statef_m,group = 1),color = "blue") +
+  geom_line(aes(x=factor(year), y=statep_m,group = 1),color = "black") +
+  xlab("year") +
+  ylab("State_mean")+
+  theme_bw()
+
+plot_state_z <- fullDatam %>%
+  ggplot() +
+  geom_line(aes(x=factor(year), y=staten_zm,group = 1),color = "red") +
+  geom_line(aes(x=factor(year), y=statef_zm,group = 1),color = "blue") +
+  geom_line(aes(x=factor(year), y=statep_zm,group = 1),color = "black") +
+  xlab("year") +
+  ylab("State_mean_z")+
+  theme_bw()
+
+plot_fam <- fullDatam %>%
+  ggplot() +
+  geom_line(aes(x=factor(year), y=famn_m,group = 1),color = "red") +
+  geom_line(aes(x=factor(year), y=famf_m,group = 1),color = "blue") +
+  geom_line(aes(x=factor(year), y=famp_m,group = 1),color = "black") +
+  xlab("year") +
+  ylab("Family_mean")+
+  theme_bw()
+
+plot_fam_z <- fullDatam %>%
+  ggplot() +
+  geom_line(aes(x=factor(year), y=famn_zm,group = 1),color = "red") +
+  geom_line(aes(x=factor(year), y=famf_zm,group = 1),color = "blue") +
+  geom_line(aes(x=factor(year), y=famp_zm,group = 1),color = "black") +
+  xlab("year") +
+  ylab("Family_mean")+
+  theme_bw()
+
+plot_now <- fullDatam %>%
+  ggplot() +
+  geom_line(aes(x=factor(year), y=staten_m,group = 1),color = "red") +
+  geom_line(aes(x=factor(year), y=famn_m,group = 1),color = "black") +
+  xlab("year") +
+  ylab("Now_mean")+
+  theme_bw()
+
+plot_past <- fullDatam %>%
+  ggplot() +
+  geom_line(aes(x=factor(year), y=statep_m,group = 1),color = "red") +
+  geom_line(aes(x=factor(year), y=famp_m,group = 1),color = "black") +
+  xlab("year") +
+  ylab("Past_mean")+
+  theme_bw()
+
+plot_future <- fullDatam %>%
+  ggplot() +
+  geom_line(aes(x=factor(year), y=statef_m,group = 1),color = "red") +
+  geom_line(aes(x=factor(year), y=famf_m,group = 1),color = "black") +
+  xlab("year") +
+  ylab("Future_mean")+
+  theme_bw()
+
+plot_trust <- fullDatam %>%
+  ggplot() +
+  geom_line(aes(x=factor(year), y=trust_gover_zm,group = 1),color = "red") +
+  geom_line(aes(x=factor(year), y=famp_zm,group = 1),color = "black") +
+  geom_line(aes(x=factor(year), y=statep_zm,group = 1),color = "blue") +
+  xlab("year") +
+  ylab("trust_gover_z_mean")+
+  theme_bw()
+
+plot_trust <- fullDatam %>%
+  ggplot() +
+ # geom_line(aes(x=factor(year), y=trust_zm,group = 1),color = "red") +
+  geom_line(aes(x=factor(year), y=fam_zm,group = 1),color = "black") +
+  geom_line(aes(x=factor(year), y=state_zm,group = 1),color = "red") +
+  xlab("year") +
+  ylab("National Evaluation and personal Evaluation")+
+  theme_bw()
+
+```
+
+### tableDescription
+
+```{r dataDescription, results='asis',warning=FALSE}
+## fulldata descriptive
+datasummary(
+    data = fullData,
+    output = "../table/Descriptive.docx",
+      (Trust = trust) +
+      (`State now` = staten) +
+      (`State Future` = statef)  +
+      (`State Past` = statep) + 
+      (`Family now` = famn) +
+      (`Family Future` = famf) +
+      (`Family Past` = famp) +
+      (Age = age) +
+      (Gender = female) +
+      (Marriage = marriage) +
+      (Residence = hukouRural) +
+      (Education = edu) +
+      (Partymember = party)    ~
+        (Mean + SD + Min + Max + (Number = N)),
+    title = "Description of Data",
+    notes = "Source："
+) 
+```
+
+## Regression
+
+```{r regression}
+lm_now <- lm(trust ~ state_z + fam_z + age + female + edu + hukouRural + race + party + marriage + socialLevel_z, data = fullData)
+lm_past <- lm(trust ~ statep_z + famp_z + age + female + edu + hukouRural + race + party + marriage + socialLevel_z, data = fullData)
+lm_future <- lm(trust ~ statef_z + famf_z + age + female + edu + hukouRural + race + party + marriage + socialLevel_z, data = fullData)
+lm_full <- lm(scales::rescale(trust) ~ statez + famz + age + female + edu + hukouRural + race + party + marriage, data = fullData)
+```
+
+# fulldata for pride
+
+```{r fulldata for pride,warning=FALSE}
+
+fullData_pride <- bind_rows(
+  df_cbs2008,
+  df_cbs2011,
+  df_cbs2014,
+  df_cbs2019
+)
+
+fullData_pride <- fullData_pride %>%
+  group_by(year) %>%
+  summarise(trust_gover_m = mean(trust_gover,na.rm = T),
+            trust_gover_zm = mean(trust_gover_z,na.rm = T),
+            trust_local_m = mean(trust_local,na.rm = T),
+            trust_m = mean(trust,na.rm = T),
+            trust_zm = mean(scales::rescale(trust,to = c(0,1)),na.rm = T),
+            trust_pride_zm = mean(pride_z,na.rm = T),
+            staten_m = mean(staten,na.rm = T),
+            statep_m = mean(statep,na.rm = T),
+            statef_m = mean(statef,na.rm = T),
+            famn_m = mean(famn,na.rm = T),
+            famp_m = mean(famp,na.rm = T),
+            famf_m = mean(famf,na.rm = T),
+            staten_zm = mean(staten_z,na.rm = T),
+            statep_zm = mean(statep_z,na.rm = T),
+            statef_zm = mean(statef_z,na.rm = T),
+            famn_zm = mean(famn_z,na.rm = T),
+            famp_zm = mean(famp_z,na.rm = T),
+            famf_zm = mean(famf_z,na.rm = T)) %>%
+  drop_na()
+```
+
+## plotPride
+
+```{r plotPride}
+plot_statePride_now <- fullData_pride %>%
+  ggplot() +
+  geom_line(aes(x=factor(year), y=trust_pride_zm,group = 1),color = "red") +
+  geom_line(aes(x=factor(year), y=staten_zm,group = 1),color = "blue") +
+  geom_line(aes(x=factor(year), y=famn_zm,group = 1),color = "black") +
+  xlab("year") +
+  ylab("StatePride_now")+
+  theme_bw()
+
+plot_statePride_past <- fullData_pride %>%
+  ggplot() +
+  geom_line(aes(x=factor(year), y=trust_pride_zm,group = 1),color = "red") +
+  geom_line(aes(x=factor(year), y=statep_zm,group = 1),color = "blue") +
+  geom_line(aes(x=factor(year), y=famp_zm,group = 1),color = "black") +
+  xlab("year") +
+  ylab("StatePride_past")+
+  theme_bw()
+
+plot_statePride_future <- fullData_pride %>%
+  ggplot() +
+  geom_line(aes(x=factor(year), y=trust_pride_zm,group = 1),color = "red") +
+  geom_line(aes(x=factor(year), y=statef_zm,group = 1),color = "blue") +
+  geom_line(aes(x=factor(year), y=famf_zm,group = 1),color = "black") +
+  xlab("year") +
+  ylab("StatePride_future")+
+  theme_bw()
+```
+
+## regressionPride
+
+```{r regressionPride}
+lm_priden <- lm(trust ~ staten_z + famn_z + age + female + edu + hukouRural + race + party + marriage, data = fullData)
+lm_pridep <- lm(trust ~ statep_z + famp_z + age + female + edu + hukouRural + race + party + marriage, data = fullData)
+lm_pridef <- lm(trust ~ statef_z + famf_z + age + female + edu + hukouRural + race + party + marriage, data = fullData)
+lm_pridefull <- lm(scales::rescale(trust) ~ statef_z + famf_z + statep_z + famp_z + staten_z + famn_z + age + female + edu + hukouRural + race + party + marriage, data = fullData)
+```
