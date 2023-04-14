@@ -9,7 +9,6 @@ editor: visual
 ```{r setup,include = FALSE,echo=FALSE}
 set.seed(0312)
 options (warn = -1)
-#setwd("/Users/zhumeng/Desktop/Spring semester_2023/research/code")
 # packbirth loading
 library(pacman)
 p_load("rio",
@@ -24,11 +23,204 @@ p_load("rio",
        "modelsummary")
 ```
 
-# dataloda
+
+# HousePrice
+
+```{r house}
+house_raw <- read_dta("..//data/house/house.dta") %>%
+  rename(city_code = cityid,
+         city_name = city,
+         year = year,
+         priceCom = "房价",
+         sizeCom = "商品房销售面积",
+         sacleCom = "商品房销售额",
+         sacleRes = "商品房销售额住宅",
+         sizeRes = "商品房销售面积住宅",
+         investCom = "房地产开发投资",
+         investRes = "房地产开发投资住宅"
+         ) %>%
+  mutate(priceRes = sacleRes/sizeRes,
+         priceComr = priceCom * 1000,
+         priceResr = priceRes * 1000)
+
+#housePrice_raw <- readxl::read_xlsx("../data/house/housePriceClean.xlsx") %>%
+  rename(source = `数据来源`) 
+#housePrice_raw$city_name <- str_remove(housePrice$source, pattern = "统计局")
+
+```
+
+
+
+
+# CSS
+
+## dataloda
+
+```{r dataloda}
+cityname <- read.csv("../data/cityname.csv") %>%
+  select(.,city_code,city_name)
+
+css2021_raw <- read_sav("../data/CSS/Data/CSS2021.sav") %>%
+  mutate(city_code = v1,
+         year = 2021)
+css2021_raw$city_code <- as.character(css2021_raw$city_code) %>%
+  substring(.,1,4) %>%
+  paste0(.,"00",sep = "")
+
+css2021 <- merge(css2021_raw,cityname,by.x = "city_code", by.y="city_code", all.x = TRUE) %>%
+  select(.,v2,v1,city_code,city_name,v3_1,year,a1b1,a1c1,a1d1,a1e1,a2,a3,a4a,a4g,b1,b3,c1a,c1b1,c1c1,c1d1,c1e1,c1f1,c1g1,c1h1,c5a1,c6a,c6b,e1a,e2a,d4a,d4b,d4c,f1a_1,f1a_2,f1a_3,f1a_9,g1a_1,g1a_2,g1a_4,g1a_5,g1a_6,g1b_1,g1b_3,g1b_4,g1b_5,g1b_6,g3a_1,g3a_2,g3a_3,g3a_4,g3a_5,g3a_6,g3a_7,g3a_8,g3a_9,g3a_10,g3a_11,g3a_12,g3a_13,g3a_14,g3a_15,h2a_1,h2a_2,h2a_3,h2a_4,h2a_5,h2a_6,h2a_7,h2a_8,h2a_9,h2a_11,h3b,h4,h5a,h6a_1,h6a_2,h6a_3,h6a_4,h6a_5,h6a_6,h6a_8)
+
+css2021$city_name[css2021$city_code %in% c(110100:110800)] <- "北京市"
+css2021$city_name[css2021$city_code %in% c(120100:120800)] <- "天津市"
+css2021$city_name[css2021$city_code %in% c(310100:310800)] <- "上海市"
+css2021$city_name[css2021$city_code %in% c(500100:501200)] <- "重庆市"
+
+css2021 <- css2021 %>%
+  rename(number = v2,
+         id = v1) %>%
+  drop_na(city_name)
+
+```
+
+## dataclean
+```{r dataclean}
+css2021[css2021 < 0] <- NA
+css2021$female <- css2021$a1b1 - 1
+css2021$age <- 2021 - css2021$a1c1
+css2021$marriage <- Recode(css2021$a1e1,"c(1,4,5,6) = 0; c(2,3) = 1")
+css2021$hukouRural <- Recode(css2021$a4a,"2:4 = 0")#农业户口为1；非农为0
+css2021$edu <- Recode(css2021$a1d1,"1:2 = 1; 3 = 2; 4:6 = 3; 7:8 = 4; 9 = 5; c(-2,10) = NA")
+css2021$race <- Recode(css2021$a2,"2:12 = 0; -1 = 0")
+css2021$party <- Recode(css2021$a3,"c(1,3) = 1; c(2,4) = 0")
+css2021$socialLevel <- css2021$d4a
+css2021$incomePer <- css2021$b11a2
+css2021$incomeFam <- css2021$c5a1
+
+css2021$province <- as.character(css2021$v3_1) %>%
+  dplyr::recode(
+         "11" = "北京市", 
+         "12" = "天津市", 
+         "13" = "河北省", 
+         "14" = "山西省", 
+         "15" = "内蒙古自治区", 
+         "21" = "辽宁省", 
+         "22" = "吉林省", 
+         "23" = "黑龙江省", 
+         "31" = "上海市", 
+         "32" = "江苏省", 
+         "33" = "浙江省", 
+         "34" = "安徽省", 
+         "35" = "福建省", 
+         "36" = "江西省", 
+         "37" = "山东省", 
+         "41" = "河南省", 
+         "42" = "湖北省", 
+         "43" = "湖南省", 
+         "44" = "广东省", 
+         "45" = "广西壮族自治区", 
+         "46" = "海南省", 
+         "50" = "重庆市", 
+         "51" = "四川省", 
+         "52" = "贵州省", 
+         "53" = "云南省", 
+         "54" = "西藏自治区", 
+         "61" = "陕西省", 
+         "62" = "甘肃省", 
+         "63" = "青海省", 
+         "64" = "宁夏回族自治区", 
+         "65" = "新疆维吾尔自治区")
+
+# IV
+css2021$houseown <- css2021$c1a
+css2021$houseownr <- Recode(css2021$c1a,"1:11 = 1; -2:-1 = NA")
+css2021$housesize <- css2021$c1b1
+css2021$housetype <- css2021$c1c1
+css2021$housesource <- css2021$c1d1
+css2021$houselocation <- css2021$c1e1
+css2021$houseby_year <- Recode(css2021$c1f1,"-1:201 = NA")
+css2021$houseby_price <- css2021$c1g1
+css2021$houseprice_now <- css2021$c1h1
+
+
+# OV
+css2021$trust_gover <- css2021$f1a_1
+css2021$trust_gover_z <- scales::rescale(as.numeric(css2021$f1a_1),to = c(0,1))
+css2021$trust_goverR <- Recode(css2021$f1a_1,"c(3,4) = 1; c(1,2) = 0")
+css2021$trust_gover_max <- Recode(css2021$f1a_1,"4 = 1; 1:3 = 0") #-1表示不好说，目前标为na，可以根据结果调整为0这一类
+css2021$trust_quxian <- css2021$f1a_2
+css2021$trust_xiangzhen <- css2021$f1a_3
+css2021$trust_local <- dplyr::select(css2021, trust_quxian, trust_xiangzhen) %>%
+  rowMeans(na.rm = TRUE)
+css2021$trust_local_max <- Recode(css2021$trust_local,"4 = 1; 1:3.5 = 0")
+css2021$trust_local_z <- scales::rescale(css2021$trust_local,to = c(0,1))
+
+## political efficacy
+css2021$efficacyIn <- dplyr::select(css2021,h6a_4,h6a_5,h6a_6,h6a_8) %>%
+  rowMeans(na.rm = TRUE)
+## politiacl participation
+css2021$politicalTotal <- dplyr::select(css2021,h2a_1,h2a_2,h2a_3,h2a_4,h2a_5,h2a_6,h2a_7,h2a_8,h2a_11) %>%
+  rowMeans(na.rm = TRUE)
+css2021$politicalDiuss <- dplyr::select(css2021,h2a_1,h2a_2,h2a_3)%>%
+  rowMeans(na.rm = TRUE)
+css2021$politicalEffect <- dplyr::select(css2021,h2a_4,h2a_5,h2a_6,h2a_8) %>%
+  rowMeans(na.rm = TRUE)
+css2021$politicalCollect <- dplyr::select(css2021,h2a_7,h2a_11) %>%
+  rowMeans(na.rm = TRUE)
+css2021$politicalVote <- css2021$h4 #是否愿意参加下次一社区军委会/村委会选举
+
+### political vote
+css2021$votessu <- Recode(css2021$h3b,"2 = 0; 3 = NA")
+css2021$votepku <- Recode(css2021$h5a,"2 = 0; 3:4 = NA")
+
+## political evaluation
+css2021$evaTotal <- css2021$g3a_15
+
+## national Identity
+css2021$prideA <- dplyr::select(css2021,g1a_1,g1a_4,g1a_5,g1a_6) %>%
+  rowMeans(na.rm = TRUE)
+
+css2021$prideB <- dplyr::select(css2021,g1b_1,g1b_3,g1b_4,g1b_5,g1b_6) %>%
+  rowMeans(na.rm = TRUE)
+```
+
+
+## dataDescriptive
+```{r descriptive,warning=FALSE}
+
+library(mapchina)
+library(sysfonts)
+library(showtextdb)
+library(showtext)
+library(tidyverse)
+library(sf)
+sf::sf_use_s2(FALSE)
+China <- china %>%
+  filter(Code_Province %in% as.character(11:82)) %>%
+  group_by(Name_Perfecture) %>%
+  summarise(geometry = st_union(geometry))
+
+fulldata <- merge(css2021,China,by.x = "city_name",by.y = "Name_Perfecture",all.x = TRUE) 
+
+p <- ggplot(data = fulldata) +
+  geom_sf() +
+  theme_bw() +
+  theme(legend.position = "none") 
+p
+
+df <- china %>%
+  filter(Code_Province == "14") %>%
+  group_by(Name_Perfecture)
+
+%>%
+  summarise(geometry = st_union(geometry))
+```
 
 # cbs
 
-## cbs2002
+
+## dataLoda
+
+### cbs2002
 
 ```{r cbs2002, echo=FALSE}
 # no socilalevel
@@ -141,7 +333,7 @@ cbs2002$fam_z <- cbs2002 %>%
 write.csv(cbs2002,file = "../dataclean/cbs2002.csv")
 ```
 
-## cbs2008
+### cbs2008
 
 ```{r cbs2008}
 cbs2008_raw <- haven::read_dta("../data/cbs/cbs2008.dta") %>%
@@ -253,7 +445,7 @@ cbs2008$pride_z <- scales::rescale(cbs2008$pride,to = c(0,1))
 write.csv(cbs2008,file = "../dataclean/cbs2008.csv")
 ```
 
-## cbs2011
+### cbs2011
 
 ```{r cbs2011}
 cbs2011_raw <- haven::read_dta("../data/cbs/cbs2011.dta") %>%
@@ -359,7 +551,7 @@ write.csv(cbs2011,file = "../dataclean/cbs2011.csv")
 
 ```
 
-## cbs2014
+### cbs2014
 
 ```{r cbs2014}
 cbs2014_raw <- haven::read_sav("../data/cbs/cbs2014.sav") %>%
@@ -469,7 +661,7 @@ cbs2014$pride_z <- scales::rescale(cbs2014$pride,to. =c(0,1))
 write.csv(cbs2014,file = "../dataclean/cbs2014.csv")
 ```
 
-## cbs2019
+### cbs2019
 
 ```{r cbs2019}
 cbs2019_raw <- haven::read_sav("../data/cbs/cbs2019.sav") %>%
@@ -566,112 +758,11 @@ write.csv(cbs2019,file = "../dataclean/cbs2019.csv")
 
 ```
 
-# CSS
-## dataloda
-```{r dataloda}
-cityname <- read.csv("../data/cityname.csv") %>%
-  select(.,city_code,city_name)
-
-css2021on_raw <- read_sav("../data/CSS/Data/CSS2021.sav") %>%
-  mutate(city_code = v1,
-         year = 2021)
-css2021_raw$city_code <- as.character(css2021_raw$city_code) %>%
-  substring(.,1,4) %>%
-  paste0(.,"00",sep = "")
-css2021 <- merge(css2021_raw,cityname,by.x = "city_code", by.y="city_code", all.x = TRUE) %>%
-  select(.,v2,v1,city_code,city_name,v3_1,year,a1b1,a1c1,a1d1,a1e1,a2,a3,a4a,a4g,b1,b3,c1a,c1b1,c1c1,c1d1,c1e1,c1f1,c1g1,c1h1,c5a1,c6a,c6b,e1a,e2a,d4a,d4b,d4c,f1a_1,f1a_2,f1a_3,f1a_9,g1a_1,g1a_2,g1a_4,g1a_5,g3a_1,g3a_2,g3a_3,g3a_4,g3a_5,g3a_6,g3a_7,g3a_8,g3a_9,g3a_10,g3a_11,g3a_12,g3a_13,g3a_14,g3a_15,h2a_1,h2a_2,h2a_3,h2a_4,h2a_5,h2a_6,h2a_7,h2a_8,h2a_9,h2a_11,h3b,h4,h5a,h6a_1,h6a_2,h6a_3,h6a_4,h6a_5,h6a_6)
-css2021$city_name[css2021$city_code %in% c(110100:110800)] <- "北京市"
-css2021$city_name[css2021$city_code %in% c(120100:120800)] <- "天津市"
-css2021$city_name[css2021$city_code %in% c(310100:310800)] <- "上海市"
-css2021$city_name[css2021$city_code %in% c(500100:501200)] <- "重庆市"
-
-css2021on <- css2021 %>%
-  rename(number = v2,
-         id = v1,
-         province = v3_1) %>%
-  drop_na(city_name)
-css2021on[css2021on < 0] <- NA
-```
-
-## dataclean
-```{r dataclean}
-css2021on$province <- as.character(css2021on$province) %>%
-  dplyr::recode(
-         "11" = "北京市", 
-         "12" = "天津市", 
-         "13" = "河北省", 
-         "14" = "山西省", 
-         "15" = "内蒙古自治区", 
-         "21" = "辽宁省", 
-         "22" = "吉林省", 
-         "23" = "黑龙江省", 
-         "31" = "上海市", 
-         "32" = "江苏省", 
-         "33" = "浙江省", 
-         "34" = "安徽省", 
-         "35" = "福建省", 
-         "36" = "江西省", 
-         "37" = "山东省", 
-         "41" = "河南省", 
-         "42" = "湖北省", 
-         "43" = "湖南省", 
-         "44" = "广东省", 
-         "45" = "广西壮族自治区", 
-         "46" = "海南省", 
-         "50" = "重庆市", 
-         "51" = "四川省", 
-         "52" = "贵州省", 
-         "53" = "云南省", 
-         "54" = "西藏自治区", 
-         "61" = "陕西省", 
-         "62" = "甘肃省", 
-         "63" = "青海省", 
-         "64" = "宁夏回族自治区", 
-         "65" = "新疆维吾尔自治区")
-css2021on$female <- css2021on$a1b1 - 1
-css2021on$age <- 2021 - css2021on$a1c1
-css2021on$corhort <- Recode(css2021on$age,"17:29 = 1; 30:49 = 2; 50:69 = 3;70 = 4")
-css2021on$marriage <- Recode(css2021on$a1e1,"c(1,4,5,6) = 0; c(2,3) = 1; -2 = NA")
-css2021on$hukouRural <- Recode(css2021on$a4a,"2:4 = 0")#农业户口为1；非农为0
-css2021on$edu <- Recode(css2021on$a1d1,"1:2 = 1; 3 = 2; 4:6 = 3; 7:8 = 4; 9 = 5; c(-2,10) = NA")
-css2021on$race <- Recode(css2021on$a2,"2:12 = 0; -1 = 0")
-css2021on$party <- Recode(css2021on$a3,"c(1,3) = 1; c(2,4) = 0")
-css2021on$socialLevel <- css2021on$d4a
-css2021on$incomeFam <- css2021on$c5a1
-css2021on$trust_gover <- css2021on$f1a_1
-css2021on$trust_gover_z <- rescale(as.numeric(css2021on$f1a_1),to = c(0,1))
-css2021on$trust_goverR <- Recode(css2021on$f1a_1,"c(3,4) = 1; c(1,2) = 0")
-css2021on$trust_gover_max <- Recode(css2021on$f1a_1,"4 = 1; 1:3 = 0") #-1表示不好说，目前标为na，可以根据结果调整为0这一类
-css2021on$trust_quxian <- css2021on$f1a_2
-css2021on$trust_xiangzhen <- css2021on$f1a_3
-css2021on$trust_local <- dplyr::select(css2021on, trust_quxian, trust_xiangzhen) %>%
-  rowMeans(na.rm = TRUE)
-css2021on$trust_local_max <- Recode(css2021on$trust_local,"4 = 1; 1:3.5 = 0")
-css2021on$trust_local_z <- scales::rescale(css2021on$trust_local,to = c(0,1))
-
-css2021on$trust_quxian_z <- scales::rescale(as.numeric(css2021on$f1a_2),to = c(0,1))
-css2021on$trust_xiangzhen_z <- scales::rescale(as.numeric(css2021on$f1a_3),to = c(0,1))
-
-df_css2021 <- css2021on %>%
-  filter(city_code != 653000) %>%
-  group_by(city_name) %>%
-  summarise(trust_local_zm = mean(trust_local_z,na.rm = T),
-            trust_gover_zm = mean(trust_gover_z,na.rm = T),
-            trust_local_maxm = mean(trust_local_max,na.rm = T),
-            trust_gover_maxm = mean(trust_gover_max,na.rm = T)) %>%
-  mutate(gap_z = trust_gover_zm - trust_local_zm,
-         gap_max = trust_gover_maxm - trust_local_maxm)
-```
-
-# housePrice
-```{r house}
-
-```
 
 
-# fullData for political Trust
+## fullData for political Trust
 
-## dataCombine
+### dataCombine
 
 ```{r warning = FALSE}
 df_cbs2002 <- cbs2002 %>%
@@ -690,6 +781,7 @@ df_cbs2019 <- cbs2019 %>%
   dplyr::select(id,province,year,age,female,party,race,hukouRural,marriage,edu,socialLevel_z,staten,statep,statef,famn,famp,famf,staten_z,statep_z,statef_z,state,state_z,fam,fam_z,famn_z,famp_z,famf_z,trust_gover,trust_gover_z,trust_local,trust,pride_z) 
 
 ```
+
 
 ### fulldata for trust
 
@@ -730,6 +822,7 @@ fullDatam <- fullData %>%
   drop_na()
 
 ```
+
 
 ## dataDescription
 
@@ -816,6 +909,7 @@ plot_trust <- fullDatam %>%
 
 ```
 
+
 ### tableDescription
 
 ```{r dataDescription, results='asis',warning=FALSE}
@@ -851,7 +945,7 @@ lm_future <- lm(trust ~ statef_z + famf_z + age + female + edu + hukouRural + ra
 lm_full <- lm(scales::rescale(trust) ~ statez + famz + age + female + edu + hukouRural + race + party + marriage, data = fullData)
 ```
 
-# fulldata for pride
+## fulldata for pride
 
 ```{r fulldata for pride,warning=FALSE}
 
@@ -885,7 +979,7 @@ fullData_pride <- fullData_pride %>%
   drop_na()
 ```
 
-## plotPride
+### plotPride
 
 ```{r plotPride}
 plot_statePride_now <- fullData_pride %>%
@@ -916,7 +1010,7 @@ plot_statePride_future <- fullData_pride %>%
   theme_bw()
 ```
 
-## regressionPride
+### regressionPride
 
 ```{r regressionPride}
 lm_priden <- lm(trust ~ staten_z + famn_z + age + female + edu + hukouRural + race + party + marriage, data = fullData)
@@ -924,3 +1018,5 @@ lm_pridep <- lm(trust ~ statep_z + famp_z + age + female + edu + hukouRural + ra
 lm_pridef <- lm(trust ~ statef_z + famf_z + age + female + edu + hukouRural + race + party + marriage, data = fullData)
 lm_pridefull <- lm(scales::rescale(trust) ~ statef_z + famf_z + statep_z + famp_z + staten_z + famn_z + age + female + edu + hukouRural + race + party + marriage, data = fullData)
 ```
+
+
